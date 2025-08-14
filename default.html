@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Volleyball Scoreboard — Pro + Colors + History</title>
+<style>
+  :root{
+    --bg:#0b0d11;
+    --panel:#141823;
+    --text:#f4f6f8;
+    --muted:#9aa6b6;
+    --accent:#2d7dff;
+    --accent-2:#00c853;
+    --danger:#ff5252;
+    --teamA:#2d7dff;
+    --teamB:#ff4d4d;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif}
+  .app{max-width:1000px;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--panel);border-radius:14px;padding:12px;border:1px solid #1f2a45}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+  .toolbar .left,.toolbar .right{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .pill{display:inline-flex;gap:8px;align-items:center;padding:8px 10px;background:#1b2232;border-radius:10px;color:#dbe4f3;font-size:14px;border:1px solid #24314b}
+  input[type="number"],select{background:#101522;color:#eaf0ff;border:1px solid #283552;border-radius:8px;padding:6px 8px;font-size:14px}
+  input[type='color']{appearance:none;border:none;background:transparent;width:28px;height:28px;border-radius:6px;overflow:hidden;cursor:pointer}
+  input[type='color']::-webkit-color-swatch{border:1px solid #2b3a59;border-radius:6px}
+  .chips{display:flex;gap:6px}
+  .chip{width:18px;height:18px;border-radius:4px;border:1px solid #0006;cursor:pointer;box-shadow:inset 0 0 0 2px #0002}
+  .teams{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:760px){ .teams{grid-template-columns:1fr} }
+  .team{display:flex;flex-direction:column;gap:10px;min-height:260px;border-radius:14px;position:relative}
+  .teamA{box-shadow:0 0 0 2px color-mix(in oklab, var(--teamA) 40%, transparent) inset}
+  .teamB{box-shadow:0 0 0 2px color-mix(in oklab, var(--teamB) 40%, transparent) inset}
+  header.meta{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .name[contenteditable]{outline:none;border-bottom:1px dashed transparent;font-weight:700;font-size:20px;letter-spacing:.3px}
+  .name[contenteditable]:focus{border-bottom-color:var(--accent)}
+  .serve{font-size:12px;color:var(--muted);padding:2px 8px;border:1px solid var(--muted);border-radius:999px}
+  .teamA .serve.active{border-color:var(--teamA);color:var(--teamA)}
+  .teamB .serve.active{border-color:var(--teamB);color:var(--teamB)}
+  .sets{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+  .setdot{width:14px;height:14px;border-radius:50%;background:#2a3247;opacity:.7}
+  .teamA .setdot.win{background:var(--teamA);opacity:1}
+  .teamB .setdot.win{background:var(--teamB);opacity:1}
+  .score{font-size:96px;line-height:1;font-weight:900;text-align:center;margin-top:6px}
+  .teamA .score{ text-shadow:0 0 20px color-mix(in oklab, var(--teamA) 45%, transparent) }
+  .teamB .score{ text-shadow:0 0 20px color-mix(in oklab, var(--teamB) 45%, transparent) }
+  .buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  button{font-size:18px;border:0;border-radius:12px;padding:14px 12px;cursor:pointer;color:white;background:#1f2432}
+  button:active{transform:translateY(1px)}
+  .plus{background:#3450ff}
+  .minus{background:#30374a}
+  .timeout{background:#30374a}
+  .mutedBtn{background:#30374a;color:#dfe5ef}
+  .winner{background:var(--accent-2)}
+  .danger{background:var(--danger)}
+  .help{color:var(--muted);font-size:12px}
+  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;background:#0f1320;border:1px solid #2b334d;border-radius:6px;padding:2px 6px;margin:0 2px}
+  /* contrast-aware */
+  .team.light .score, .team.light .name { color:#0f1422; text-shadow:none }
+  .team.dark  .score, .team.dark  .name { color:#ffffff }
+  /* history */
+  .history{display:grid;grid-template-columns:1.2fr 1fr;gap:12px}
+  @media (max-width:1000px){ .history{grid-template-columns:1fr} }
+  .history-list{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto}
+  .history-item{border:1px solid #263255;border-radius:12px;padding:10px;background:#0e1220}
+  .history-item .line{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .history-item .names{font-weight:700}
+  .history-item .stamp{color:#aab3c4;font-size:12px}
+  .history-item .sets{color:#bfc7d6;font-size:13px}
+  .history-empty{color:#aab3c4}
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="toolbar panel">
+    <div class="left">
+      <span class="pill">Best of 
+        <select id="bestOf">
+          <option value="3">3</option>
+          <option value="5" selected>5</option>
+        </select>
+      </span>
+      <span class="pill">Points / set <input id="pointsPerSet" type="number" value="25" min="1" aria-label="Points per set"></span>
+      <span class="pill">Deciding set pts <input id="decidingPts" type="number" value="15" min="1" aria-label="Deciding set points"></span>
+      <label class="pill"><input id="winBy2" type="checkbox" checked> Win by 2</label>
+    </div>
+    <div class="right">
+      <button id="flip" class="mutedBtn" title="Swap sides (F)">Flip Sides</button>
+      <button id="undo" class="mutedBtn" title="Undo (U)">Undo</button>
+      <button id="newSet" class="winner" title="Start next set (N)">New Set</button>
+      <button id="saveMatch" class="winner" title="Save match">End Match & Save</button>
+      <button id="reset" class="danger" title="New match (R)">New Match</button>
+    </div>
+  </div>
+
+  <div class="toolbar panel">
+    <div class="left">
+      <span class="pill">
+        Team A color: <input id="colorA" type="color" value="#2d7dff" title="Team A color">
+      </span>
+      <span class="pill">
+        Team B color: <input id="colorB" type="color" value="#ff4d4d" title="Team B color">
+      </span>
+      <span class="pill">
+        Notes: <input id="matchNotes" type="text" placeholder="e.g., vs Eagles, Court 2">
+      </span>
+    </div>
+    <div class="right">
+      <button id="swapNames" class="mutedBtn">Swap Names & Colors</button>
+      <button id="savePrefs" class="mutedBtn">Save Names/Colors</button>
+      <button id="clearPrefs" class="mutedBtn">Clear Saved</button>
+    </div>
+  </div>
+
+  <div class="teams">
+    <div class="team panel teamA dark" id="teamA">
+      <header class="meta">
+        <div style="display:flex;gap:8px;align-items:center">
+          <div contenteditable id="nameA" class="name" spellcheck="false">Home</div>
+          <div class="serve" id="serveA">Serve</div>
+        </div>
+        <div class="sets" id="setsA">
+          <div class="setdot"></div><div class="setdot"></div><div class="setdot"></div><div class="setdot"></div><div class="setdot"></div>
+        </div>
+      </header>
+      <div class="score" id="scoreA">0</div>
+      <div class="buttons">
+        <button class="plus" data-team="A" data-delta="1" title="+1 (A)">+1</button>
+        <button class="minus" data-team="A" data-delta="-1" title="-1 (Z)">-1</button>
+        <button class="timeout" data-team="A" data-action="timeout">Timeout</button>
+        <button class="plus" data-team="A" data-delta="2">+2</button>
+        <button class="minus" data-team="A" data-delta="-2">-2</button>
+        <button class="mutedBtn" data-team="A" data-action="giveServe">Give Serve</button>
+      </div>
+    </div>
+
+    <div class="team panel teamB dark" id="teamB">
+      <header class="meta">
+        <div style="display:flex;gap:8px;align-items:center">
+          <div contenteditable id="nameB" class="name" spellcheck="false">Away</div>
+          <div class="serve" id="serveB">Serve</div>
+        </div>
+        <div class="sets" id="setsB">
+          <div class="setdot"></div><div class="setdot"></div><div class="setdot"></div><div class="setdot"></div><div class="setdot"></div>
+        </div>
+      </header>
+      <div class="score" id="scoreB">0</div>
+      <div class="buttons">
+        <button class="plus" data-team="B" data-delta="1" title="+1 (K)">+1</button>
+        <button class="minus" data-team="B" data-delta="-1" title="-1 (M)">-1</button>
+        <button class="timeout" data-team="B" data-action="timeout">Timeout</button>
+        <button class="plus" data-team="B" data-delta="2">+2</button>
+        <button class="minus" data-team="B" data-delta="-2">-2</button>
+        <button class="mutedBtn" data-team="B" data-action="giveServe">Give Serve</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel help">
+    Quick keys: <span class="kbd">A</span>/<span class="kbd">Z</span> Team A +/−, 
+    <span class="kbd">K</span>/<span class="kbd">M</span> Team B +/−, 
+    <span class="kbd">U</span> Undo, <span class="kbd">F</span> Flip sides, 
+    <span class="kbd">N</span> New set, <span class="kbd">R</span> New match, <span class="kbd">Space</span> toggle serve.
+  </div>
+
+  <div class="panel history">
+    <div>
+      <h3 style="margin:6px 0 10px 0">Season History</h3>
+      <div class="history-list" id="historyList">
+        <div class="history-empty">No matches saved yet. End a match to save it here.</div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin:6px 0 10px 0">History Tools</h3>
+      <div class="pill" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="exportCsv" class="mutedBtn">Export CSV</button>
+        <button id="exportJson" class="mutedBtn">Export JSON</button>
+        <label class="mutedBtn" style="padding:8px;border-radius:8px">
+          Import JSON
+          <input id="importJson" type="file" accept="application/json" style="display:none">
+        </label>
+        <button id="clearHistory" class="danger">Clear History</button>
+      </div>
+      <p class="help" style="margin-top:10px">
+        Matches are stored locally on this device (browser storage). Export to CSV/JSON to back up or share across devices.
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const el = id => document.getElementById(id);
+  const nowISO = ()=> new Date().toISOString();
+
+  const state = {
+    scores:{A:0,B:0},
+    setsWon:{A:0,B:0},
+    serving:'A',
+    historyStack:[],
+    bestOf:5,
+    pointsPerSet:25,
+    decidingPts:15,
+    winBy2:true,
+    currentSet:1,
+    timeouts:{A:0,B:0},
+    setDetails:[] // [{a,b,winner} ...]
+  };
+
+  const scoreEls = {A: el('scoreA'), B: el('scoreB')};
+  const setRows = {A: el('setsA').children, B: el('setsB').children};
+  const serveEls = {A: el('serveA'), B: el('serveB')};
+  const nameEls = {A: el('nameA'), B: el('nameB')};
+  const colorInputs = {A: el('colorA'), B: el('colorB')};
+  const notesInput = el('matchNotes');
+
+  function render(){
+    scoreEls.A.textContent = state.scores.A;
+    scoreEls.B.textContent = state.scores.B;
+    updateServeUI();
+    updateSetDots();
+    renderHistory();
+  }
+
+  function updateServeUI(){
+    serveEls.A.classList.toggle('active', state.serving==='A');
+    serveEls.B.classList.toggle('active', state.serving==='B');
+  }
+
+  function updateSetDots(){
+    for(let i=0;i<5;i++){
+      setRows.A[i].classList.toggle('win', i < state.setsWon.A);
+      setRows.B[i].classList.toggle('win', i < state.setsWon.B);
+      setRows.A[i].style.opacity = i < state.bestOf ? 1 : 0.2;
+      setRows.B[i].style.opacity = i < state.bestOf ? 1 : 0.2;
+    }
+  }
+
+  function computeTarget(){
+    const deciding = (state.setsWon.A + state.setsWon.B) === (state.bestOf - 1);
+    return deciding ? state.decidingPts : state.pointsPerSet;
+  }
+  function computeSetWinner(){
+    const t = computeTarget();
+    const a = state.scores.A, b = state.scores.B;
+    const winBy = state.winBy2 ? 2 : 1;
+    if((a>=t || b>=t) && Math.abs(a-b)>=winBy) return a>b ? 'A' : 'B';
+    return null;
+  }
+
+  function snapshot(){
+    return {
+      scores:{...state.scores},
+      setsWon:{...state.setsWon},
+      serving:state.serving,
+      bestOf:state.bestOf,
+      pointsPerSet:state.pointsPerSet,
+      decidingPts:state.decidingPts,
+      winBy2:state.winBy2,
+      currentSet:state.currentSet,
+      timeouts:{...state.timeouts},
+      setDetails:[...state.setDetails],
+      names:{A:nameEls.A.textContent, B:nameEls.B.textContent},
+      colors:{A:colorInputs.A.value, B:colorInputs.B.value},
+      notes:notesInput.value
+    };
+  }
+  function pushHistory(s){ state.historyStack.push(JSON.stringify(s)); if(state.historyStack.length>160) state.historyStack.shift(); }
+  function restore(snap){
+    state.scores = snap.scores; state.setsWon = snap.setsWon; state.serving = snap.serving;
+    state.bestOf = snap.bestOf; state.pointsPerSet = snap.pointsPerSet; state.decidingPts = snap.decidingPts;
+    state.winBy2 = snap.winBy2; state.currentSet = snap.currentSet; state.timeouts = snap.timeouts || {A:0,B:0};
+    state.setDetails = snap.setDetails || [];
+    nameEls.A.textContent = snap.names.A; nameEls.B.textContent = snap.names.B;
+    colorInputs.A.value = snap.colors.A; colorInputs.B.value = snap.colors.B;
+    notesInput.value = snap.notes || '';
+    el('bestOf').value = String(state.bestOf);
+    el('pointsPerSet').value = state.pointsPerSet;
+    el('decidingPts').value = state.decidingPts;
+    el('winBy2').checked = state.winBy2;
+    applyTeamStyles();
+    render();
+  }
+
+  function addPoints(team, delta){
+    if(delta===0) return;
+    pushHistory(snapshot());
+    state.scores[team] = Math.max(0, state.scores[team] + delta);
+    render();
+    const w = computeSetWinner();
+    if(w){
+      const panel = document.getElementById('team'+w);
+      panel.animate([{transform:'scale(1)'},{transform:'scale(1.02)'},{transform:'scale(1)'}],{duration:500});
+      setTimeout(()=>newSet(true), 450);
+    }
+  }
+
+  function finalizeCurrentSet(){
+    const a = state.scores.A, b = state.scores.B;
+    if(a+b===0) return false;
+    const w = computeSetWinner();
+    if(w===null) return false;
+    state.setDetails.push({a, b, winner:w});
+    return true;
+  }
+
+  function newSet(auto=false){
+    if(!auto && (state.scores.A+state.scores.B>0) && computeSetWinner()===null){
+      if(!confirm('Start a new set without a winner?')) return;
+    }
+    pushHistory(snapshot());
+    finalizeCurrentSet();
+    const w = computeSetWinner();
+    if(w) state.setsWon[w] += 1;
+    state.scores = {A:0,B:0};
+    state.currentSet += 1;
+    render();
+    maybeEndMatch();
+  }
+
+  function maybeEndMatch(){
+    const needed = Math.ceil(state.bestOf/2);
+    if(state.setsWon.A>=needed || state.setsWon.B>=needed){
+      saveMatchRecord('auto');
+    }
+  }
+
+  function giveServe(team){
+    if(state.serving===team) return;
+    pushHistory(snapshot());
+    state.serving = team;
+    render();
+  }
+  function toggleServe(){
+    pushHistory(snapshot());
+    state.serving = state.serving==='A'?'B':'A';
+    render();
+  }
+  function flipSides(){
+    pushHistory(snapshot());
+    const n = nameEls.A.textContent; nameEls.A.textContent = nameEls.B.textContent; nameEls.B.textContent = n;
+    const c = colorInputs.A.value; colorInputs.A.value = colorInputs.B.value; colorInputs.B.value = c;
+    let tmp = state.scores.A; state.scores.A = state.scores.B; state.scores.B = tmp;
+    tmp = state.setsWon.A; state.setsWon.A = state.setsWon.B; state.setsWon.B = tmp;
+    tmp = state.timeouts.A; state.timeouts.A = state.timeouts.B; state.timeouts.B = tmp;
+    state.serving = state.serving==='A'?'B':'A';
+    applyTeamStyles();
+    render();
+  }
+
+  function undo(){
+    const last = state.historyStack.pop();
+    if(!last) return;
+    restore(JSON.parse(last));
+  }
+
+  function newMatch(){
+    if(!confirm('Reset everything and start a new match?')) return;
+    pushHistory(snapshot());
+    state.scores={A:0,B:0};
+    state.setsWon={A:0,B:0};
+    state.serving='A';
+    state.currentSet=1;
+    state.timeouts={A:0,B:0};
+    state.setDetails=[];
+    render();
+  }
+
+  // ---- Contrast-aware color application ----
+  function isDark(hex){
+    const c = hex.replace('#','');
+    if(c.length!==6) return true;
+    const r=parseInt(c.substr(0,2),16), g=parseInt(c.substr(2,2),16), b=parseInt(c.substr(4,2),16);
+    const yiq=(r*299+g*587+b*114)/1000;
+    return yiq < 150;
+  }
+  function applyTeamStyles(){
+    document.documentElement.style.setProperty('--teamA', colorInputs.A.value);
+    document.documentElement.style.setProperty('--teamB', colorInputs.B.value);
+    const aDark = isDark(colorInputs.A.value);
+    const bDark = isDark(colorInputs.B.value);
+    const panelA = document.getElementById('teamA');
+    const panelB = document.getElementById('teamB');
+    panelA.classList.toggle('dark', aDark);
+    panelA.classList.toggle('light', !aDark);
+    panelB.classList.toggle('dark', bDark);
+    panelB.classList.toggle('light', !bDark);
+  }
+
+  // Save/load names/colors
+  function savePrefs(){
+    localStorage.setItem('vb_names_colors', JSON.stringify({
+      names:{A:nameEls.A.textContent,B:nameEls.B.textContent},
+      colors:{A:colorInputs.A.value,B:colorInputs.B.value}
+    }));
+    alert('Saved names/colors to this device.');
+  }
+  function loadPrefs(){
+    const raw = localStorage.getItem('vb_names_colors');
+    if(!raw) return;
+    try{
+      const data = JSON.parse(raw);
+      if(data?.names){ nameEls.A.textContent = data.names.A || 'Home'; nameEls.B.textContent = data.names.B || 'Away'; }
+      if(data?.colors){ colorInputs.A.value = data.colors.A || '#2d7dff'; colorInputs.B.value = data.colors.B || '#ff4d4d'; }
+    }catch{}
+  }
+  function clearPrefs(){ localStorage.removeItem('vb_names_colors'); alert('Cleared saved names/colors.'); }
+
+  // -------- Season History (localStorage) --------
+  const HISTORY_KEY = 'vb_match_history_v1';
+  function loadHistory(){ try{ return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }catch{ return []; } }
+  function saveHistory(list){ localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); }
+  function saveMatchRecord(mode='manual'){
+    finalizeCurrentSet();
+    const record = {
+      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random()),
+      savedAt: nowISO(),
+      mode,
+      teamA: {name: nameEls.A.textContent || 'Team A', color: colorInputs.A.value},
+      teamB: {name: nameEls.B.textContent || 'Team B', color: colorInputs.B.value},
+      setsWonA: state.setsWon.A,
+      setsWonB: state.setsWon.B,
+      bestOf: state.bestOf,
+      pointsPerSet: state.pointsPerSet,
+      decidingPts: state.decidingPts,
+      winBy2: state.winBy2,
+      sets: state.setDetails.slice(),
+      notes: notesInput.value || ''
+    };
+    const list = loadHistory();
+    list.unshift(record);
+    saveHistory(list);
+    alert('Match saved to Season History.');
+    newMatch();
+  }
+
+  function renderHistory(){
+    const list = loadHistory();
+    const box = el('historyList');
+    box.innerHTML = '';
+    if(!list.length){
+      const d = document.createElement('div');
+      d.className = 'history-empty';
+      d.textContent = 'No matches saved yet. End a match to save it here.';
+      box.appendChild(d);
+      return;
+    }
+    list.forEach(rec=>{
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      const stamp = new Date(rec.savedAt).toLocaleString();
+      const winner = rec.setsWonA > rec.setsWonB ? rec.teamA.name : rec.teamB.name;
+      const setsSummary = rec.sets.map((s,i)=>`S${i+1} ${s.a}-${s.b}`).join(' • ') || 'No sets recorded';
+      item.innerHTML = `
+        <div class="line">
+          <div class="names"><span style="color:${rec.teamA.color}">${rec.teamA.name}</span> vs <span style="color:${rec.teamB.color}">${rec.teamB.name}</span></div>
+          <div class="stamp mono">${stamp}</div>
+        </div>
+        <div class="line">
+          <div class="sets">Best of ${rec.bestOf} — Final: ${rec.setsWonA}-${rec.setsWonB} (Winner: ${winner})</div>
+          <div class="sets">${setsSummary}</div>
+        </div>
+        ${rec.notes ? `<div class="line"><div class="sets">Notes: ${rec.notes}</div></div>` : ''}
+        <div class="line">
+          <button data-id="${rec.id}" class="mutedBtn tiny export-one">Export JSON</button>
+          <button data-id="${rec.id}" class="danger tiny delete-one">Delete</button>
+        </div>
+      `;
+      box.appendChild(item);
+    });
+
+    box.querySelectorAll('.delete-one').forEach(btn=>{
+      btn.onclick = ()=>{
+        const id = btn.getAttribute('data-id');
+        const list = loadHistory().filter(r=>r.id!==id);
+        saveHistory(list);
+        renderHistory();
+      };
+    });
+    box.querySelectorAll('.export-one').forEach(btn=>{
+      btn.onclick = ()=>{
+        const id = btn.getAttribute('data-id');
+        const rec = loadHistory().find(r=>r.id===id);
+        if(!rec) return;
+        downloadFile(`vb_match_${id}.json`, JSON.stringify(rec, null, 2), 'application/json');
+      };
+    });
+  }
+
+  function toCsv(list){
+    if(!list.length) return 'date,teamA,teamB,setsWonA,setsWonB,bestOf,pointsPerSet,decidingPts,winBy2,set1A,set1B,set2A,set2B,set3A,set3B,set4A,set4B,set5A,set5B,notes\\n';
+    const rows = list.map(rec=>{
+      const sets = [0,0,0,0,0,0,0,0,0,0];
+      rec.sets.forEach((s,i)=>{ sets[i*2] = s.a; sets[i*2+1] = s.b; });
+      return [
+        new Date(rec.savedAt).toLocaleString().replace(/,/g,';'),
+        csvSafe(rec.teamA.name),
+        csvSafe(rec.teamB.name),
+        rec.setsWonA, rec.setsWonB,
+        rec.bestOf, rec.pointsPerSet, rec.decidingPts, rec.winBy2 ? 'yes' : 'no',
+        ...sets,
+        csvSafe(rec.notes||'')
+      ].join(',');
+    });
+    const header = 'date,teamA,teamB,setsWonA,setsWonB,bestOf,pointsPerSet,decidingPts,winBy2,set1A,set1B,set2A,set2B,set3A,set3B,set4A,set4B,set5A,set5B,notes';
+    return header + '\\n' + rows.join('\\n');
+  }
+  function csvSafe(s){ if(s==null) return ''; const needs = /[",\\n,;]/.test(String(s)); return needs ? `\"${String(s).replace(/\"/g,'\"\"')}\"` : String(s); }
+
+  function downloadFile(name, content, type='text/plain'){
+    const blob = new Blob([content], {type});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(a.href);
+    a.remove();
+  }
+
+  // History tool buttons
+  el('exportCsv').onclick = ()=> downloadFile('vb_match_history.csv', toCsv(loadHistory()), 'text/csv');
+  el('exportJson').onclick = ()=> downloadFile('vb_match_history.json', JSON.stringify(loadHistory(), null, 2), 'application/json');
+  el('importJson').onchange = (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const arr = JSON.parse(reader.result);
+        if(!Array.isArray(arr)) throw new Error('Invalid JSON');
+        saveHistory(arr);
+        renderHistory();
+        alert('History imported.');
+      }catch(err){ alert('Import failed: ' + err.message); }
+    };
+    reader.readAsText(file);
+  };
+  el('clearHistory').onclick = ()=>{
+    if(confirm('Clear all saved matches on this device?')){
+      localStorage.removeItem('vb_match_history_v1');
+      renderHistory();
+    }
+  };
+
+  // Wire main controls & inputs
+  document.querySelectorAll('button.plus,button.minus').forEach(b=>{
+    b.addEventListener('click', e=>{
+      const team = e.currentTarget.getAttribute('data-team');
+      const delta = parseInt(e.currentTarget.getAttribute('data-delta'),10);
+      addPoints(team, delta);
+    });
+  });
+  document.querySelectorAll('[data-action="giveServe"]').forEach(b=>{
+    b.addEventListener('click', e=> giveServe(e.currentTarget.getAttribute('data-team')));
+  });
+  el('saveMatch').onclick = ()=> saveMatchRecord('manual');
+
+  el('flip').onclick = flipSides;
+  el('undo').onclick = undo;
+  el('newSet').onclick = ()=>newSet(false);
+  el('reset').onclick = newMatch;
+
+  el('bestOf').onchange = e=>{ state.bestOf = +e.target.value; render(); };
+  el('pointsPerSet').onchange = e=>{ state.pointsPerSet = Math.max(1, +e.target.value||25); };
+  el('decidingPts').onchange = e=>{ state.decidingPts = Math.max(1, +e.target.value||15); };
+  el('winBy2').onchange = e=>{ state.winBy2 = !!e.target.checked; };
+
+  colorInputs.A.oninput = applyTeamStyles;
+  colorInputs.B.oninput = applyTeamStyles;
+  nameEls.A.oninput = ()=> savePrefsDraft();
+  nameEls.B.oninput = ()=> savePrefsDraft();
+  notesInput.oninput = ()=> savePrefsDraft();
+
+  el('swapNames').onclick = ()=>{
+    const n=nameEls.A.textContent; nameEls.A.textContent=nameEls.B.textContent; nameEls.B.textContent=n;
+    const c=colorInputs.A.value; colorInputs.A.value=colorInputs.B.value; colorInputs.B.value=c;
+    applyTeamStyles(); render();
+  };
+  el('savePrefs').onclick = savePrefs;
+  el('clearPrefs').onclick = ()=>{ clearPrefs(); };
+
+  // Draft save in session (in case you refresh)
+  function savePrefsDraft(){
+    sessionStorage.setItem('vb_draft', JSON.stringify({
+      A:nameEls.A.textContent, B:nameEls.B.textContent, cA:colorInputs.A.value, cB:colorInputs.B.value, notes:notesInput.value
+    }));
+  }
+  function loadDraft(){
+    const raw = sessionStorage.getItem('vb_draft');
+    if(!raw) return;
+    try{
+      const d = JSON.parse(raw);
+      if(d){
+        nameEls.A.textContent = d.A || nameEls.A.textContent;
+        nameEls.B.textContent = d.B || nameEls.B.textContent;
+        colorInputs.A.value = d.cA || colorInputs.A.value;
+        colorInputs.B.value = d.cB || colorInputs.B.value;
+        notesInput.value = d.notes || '';
+      }
+    }catch{}
+  }
+
+  // Keyboard shortcuts (desktop)
+  document.addEventListener('keydown', e=>{
+    if(e.target.isContentEditable) return;
+    const k = e.key.toLowerCase();
+    if(k==='a') addPoints('A', +1);
+    else if(k==='z') addPoints('A', -1);
+    else if(k==='k') addPoints('B', +1);
+    else if(k==='m') addPoints('B', -1);
+    else if(k==='u') undo();
+    else if(k==='f') flipSides();
+    else if(k==='n') newSet(false);
+    else if(k==='r') newMatch();
+    else if(k===' '){ e.preventDefault(); toggleServe(); }
+  });
+
+  // Init
+  loadPrefs();
+  loadDraft();
+  applyTeamStyles();
+  render();
+})();
+</script>
+</body>
+</html>
