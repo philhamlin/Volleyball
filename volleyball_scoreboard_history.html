@@ -1,0 +1,116 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Volleyball Scoreboard with History</title>
+<style>
+  body { font-family: Arial, sans-serif; text-align: center; background-color: #f8f8f8; margin: 0; padding: 0; }
+  h1 { background-color: #333; color: white; margin: 0; padding: 10px; }
+  .team { display: inline-block; width: 45%; padding: 10px; margin: 10px; border-radius: 10px; }
+  .score { font-size: 3em; margin: 10px; }
+  button { font-size: 1.2em; margin: 5px; padding: 10px 20px; }
+  .settings { margin: 20px 0; }
+  .history { margin: 20px auto; max-width: 500px; text-align: left; background: #fff; padding: 10px; border-radius: 10px; box-shadow: 0 0 5px rgba(0,0,0,0.2); }
+  .history h2 { margin-top: 0; }
+  .history-item { border-bottom: 1px solid #ccc; padding: 5px 0; }
+</style>
+</head>
+<body>
+
+<h1>Volleyball Scoreboard</h1>
+
+<div class="settings">
+  <label>Team 1 Name: <input type="text" id="team1NameInput" placeholder="Team 1"></label>
+  <label>Color: <input type="color" id="team1ColorInput" value="#ffcccc"></label><br><br>
+  <label>Team 2 Name: <input type="text" id="team2NameInput" placeholder="Team 2"></label>
+  <label>Color: <input type="color" id="team2ColorInput" value="#ccccff"></label><br><br>
+  <button onclick="applySettings()">Apply Settings</button>
+  <button onclick="resetGame()">Reset Score</button>
+  <button onclick="saveGame()">Save Game</button>
+</div>
+
+<div id="scoreboard">
+  <div id="team1" class="team" style="background-color: #ffcccc;">
+    <div id="team1Name">Team 1</div>
+    <div id="team1Score" class="score">0</div>
+    <button onclick="changeScore('team1', 1)">+1</button>
+    <button onclick="changeScore('team1', -1)">-1</button>
+  </div>
+
+  <div id="team2" class="team" style="background-color: #ccccff;">
+    <div id="team2Name">Team 2</div>
+    <div id="team2Score" class="score">0</div>
+    <button onclick="changeScore('team2', 1)">+1</button>
+    <button onclick="changeScore('team2', -1)">-1</button>
+  </div>
+</div>
+
+<div class="history">
+  <h2>Game History</h2>
+  <div id="historyList"></div>
+</div>
+
+<script>
+  let scores = { team1: 0, team2: 0 };
+
+  function changeScore(team, delta) {
+    scores[team] = Math.max(0, scores[team] + delta);
+    document.getElementById(team + 'Score').textContent = scores[team];
+  }
+
+  function applySettings() {
+    let name1 = document.getElementById('team1NameInput').value || 'Team 1';
+    let color1 = document.getElementById('team1ColorInput').value;
+    let name2 = document.getElementById('team2NameInput').value || 'Team 2';
+    let color2 = document.getElementById('team2ColorInput').value;
+
+    document.getElementById('team1Name').textContent = name1;
+    document.getElementById('team1').style.backgroundColor = color1;
+    document.getElementById('team2Name').textContent = name2;
+    document.getElementById('team2').style.backgroundColor = color2;
+  }
+
+  function resetGame() {
+    scores = { team1: 0, team2: 0 };
+    document.getElementById('team1Score').textContent = 0;
+    document.getElementById('team2Score').textContent = 0;
+  }
+
+  function saveGame() {
+    let history = JSON.parse(localStorage.getItem('volleyballHistory') || '[]');
+    let name1 = document.getElementById('team1Name').textContent;
+    let name2 = document.getElementById('team2Name').textContent;
+    let now = new Date();
+    let timestamp = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+    history.unshift({
+      team1: name1,
+      score1: scores.team1,
+      team2: name2,
+      score2: scores.team2,
+      time: timestamp
+    });
+    localStorage.setItem('volleyballHistory', JSON.stringify(history));
+    renderHistory();
+    resetGame();
+  }
+
+  function renderHistory() {
+    let history = JSON.parse(localStorage.getItem('volleyballHistory') || '[]');
+    let container = document.getElementById('historyList');
+    container.innerHTML = '';
+    history.forEach(game => {
+      let div = document.createElement('div');
+      div.className = 'history-item';
+      div.textContent = `[${game.time}] ${game.team1} ${game.score1} - ${game.team2} ${game.score2}`;
+      container.appendChild(div);
+    });
+  }
+
+  // Load history on start
+  renderHistory();
+</script>
+
+</body>
+</html>
