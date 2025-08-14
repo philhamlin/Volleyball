@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Volleyball Scoreboard</title>
+<style>
+  :root {
+    --bg:#0b0d11;
+    --panel:#141823;
+    --accent:#2d7dff;
+    --accent-2:#00c853;
+    --text:#f4f6f8;
+    --muted:#99a3b2;
+    --danger:#ff5252;
+    --warning:#ffb300;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif}
+  .app{max-width:950px;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:12px}
+  .row{display:flex;gap:12px}
+  .panel{background:var(--panel);border-radius:14px;padding:12px}
+  .teams{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .team{display:flex;flex-direction:column;gap:10px;min-height:240px}
+  .team header{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .name[contenteditable]{outline:none;border-bottom:1px dashed transparent}
+  .name[contenteditable]:focus{border-bottom-color:var(--accent)}
+  .serve{font-size:12px;color:var(--muted);padding:2px 8px;border:1px solid var(--muted);border-radius:999px}
+  .serve.active{border-color:var(--accent);color:var(--accent)}
+  .score{font-size:96px;line-height:1;font-weight:800;text-align:center}
+  .buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  button{font-size:18px;border:0;border-radius:12px;padding:14px 12px;cursor:pointer;color:white;background:#1f2432}
+  button:active{transform:translateY(1px)}
+  .plus{background:var(--accent)}
+  .minus{background:#30374a}
+  .timeout{background:#30374a}
+  .winner{background:var(--accent-2)}
+  .danger{background:var(--danger)}
+  .muted{background:#30374a;color:#dfe5ef}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+  .toolbar .left,.toolbar .right{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .pill{display:inline-flex;gap:8px;align-items:center;padding:8px 10px;background:#1b2030;border-radius:10px;color:#dae2f2;font-size:14px}
+  input[type="number"],select{background:#111522;color:#eaf0ff;border:1px solid #29314a;border-radius:8px;padding:6px 8px;font-size:14px;width:80px}
+  .meta{display:flex;gap:10px;flex-wrap:wrap}
+  .sets{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+  .setdot{width:14px;height:14px;border-radius:50%;background:#2a3247;opacity:.7}
+  .setdot.win{background:var(--accent-2);opacity:1}
+  .help{color:var(--muted);font-size:12px}
+  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;background:#0f1320;border:1px solid #2b334d;border-radius:6px;padding:2px 6px;margin:0 2px}
+  @media (max-width: 720px){
+    .score{font-size:68px}
+    .teams{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="toolbar panel">
+    <div class="left">
+      <span class="pill">Best of 
+        <select id="bestOf">
+          <option value="3">3</option>
+          <option value="5" selected>5</option>
+        </select>
+      </span>
+      <span class="pill">Points / set <input id="pointsPerSet" type="number" value="25" min="1"></span>
+      <span class="pill">Deciding set pts <input id="decidingPts" type="number" value="15" min="1"></span>
+      <label class="pill"><input id="winBy2" type="checkbox" checked> Win by 2</label>
+    </div>
+    <div class="right">
+      <button id="flip" class="muted" title="Swap sides (F)">Flip Sides</button>
+      <button id="undo" class="muted" title="Undo (U)">Undo</button>
+      <button id="newSet" class="winner" title="Start next set (N)">New Set</button>
+      <button id="reset" class="danger" title="New match (R)">New Match</button>
+    </div>
+  </div>
+
+  <div class="teams">
+    <div class="team panel" id="teamA">
+      <header>
+        <div class="meta">
+          <div contenteditable class="name" id="nameA" spellcheck="false">Home</div>
+          <div class="serve" id="serveA">Serve</div>
+        </div>
+        <div class="sets" id="setsA">
+          <div class="setdot"></div><div class="setdot"></div><div class="setdot"></div><div class="setdot"></div><div class="setdot"></div>
+        </div>
+      </header>
+      <div class="score" id="scoreA">0</div>
+      <div class="buttons">
+        <button class="plus" data-team="A" data-delta="1" title="+1 (A)">+1</button>
+        <button class="minus" data-team="A" data-delta="-1" title="-1 (Z)">-1</button>
+        <button class="timeout" data-team="A" data-action="timeout">Timeout</button>
+        <button class="plus" data-team="A" data-delta="2">+2</button>
+        <button class="minus" data-team="A" data-delta="-2">-2</button>
+        <button class="muted" data-team="A" data-action="giveServe">Give Serve</button>
+      </div>
+    </div>
+
+    <div class="team panel" id="teamB">
+      <header>
+        <div class="meta">
+          <div contenteditable class="name" id="nameB" spellcheck="false">Away</div>
+          <div class="serve" id="serveB">Serve</div>
+        </div>
+        <div class="sets" id="setsB">
+          <div class="setdot"></div><div class="setdot"></div><div class="setdot"></div><div class="setdot"></div><div class="setdot"></div>
+        </div>
+      </header>
+      <div class="score" id="scoreB">0</div>
+      <div class="buttons">
+        <button class="plus" data-team="B" data-delta="1" title="+1 (K)">+1</button>
+        <button class="minus" data-team="B" data-delta="-1" title="-1 (M)">-1</button>
+        <button class="timeout" data-team="B" data-action="timeout">Timeout</button>
+        <button class="plus" data-team="B" data-delta="2">+2</button>
+        <button class="minus" data-team="B" data-delta="-2">-2</button>
+        <button class="muted" data-team="B" data-action="giveServe">Give Serve</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel help">
+    Quick keys: <span class="kbd">A</span>/<span class="kbd">Z</span> Team A +/−, 
+    <span class="kbd">K</span>/<span class="kbd">M</span> Team B +/−, 
+    <span class="kbd">U</span> Undo, <span class="kbd">F</span> Flip sides, 
+    <span class="kbd">N</span> New set, <span class="kbd">R</span> New match, <span class="kbd">Space</span> toggle serve.
+  </div>
+</div>
+
+<script>
+(function(){
+  const el = id => document.getElementById(id);
+
+  const state = {
+    scores: {A:0, B:0},
+    setsWon: {A:0, B:0},
+    serving: 'A',
+    history: [], // stack of actions for undo
+    bestOf: 5,
+    pointsPerSet: 25,
+    decidingPts: 15,
+    winBy2: true,
+    timeouts: {A:0,B:0},
+    currentSet: 1
+  };
+
+  const scoreEls = {A: el('scoreA'), B: el('scoreB')};
+  const setRows = {A: el('setsA').children, B: el('setsB').children};
+  const serveEls = {A: el('serveA'), B: el('serveB')};
+  const nameEls = {A: el('nameA'), B: el('nameB')};
+
+  function render(){
+    scoreEls.A.textContent = state.scores.A;
+    scoreEls.B.textContent = state.scores.B;
+    updateServeUI();
+    updateSetDots();
+  }
+
+  function updateServeUI(){
+    serveEls.A.classList.toggle('active', state.serving==='A');
+    serveEls.B.classList.toggle('active', state.serving==='B');
+  }
+
+  function updateSetDots(){
+    const needed = Math.ceil(state.bestOf/2);
+    for(let i=0;i<5;i++){
+      setRows.A[i].classList.toggle('win', i < state.setsWon.A);
+      setRows.B[i].classList.toggle('win', i < state.setsWon.B);
+      // Hide extra dots beyond best-of
+      setRows.A[i].style.opacity = i < state.bestOf ? 1 : 0.2;
+      setRows.B[i].style.opacity = i < state.bestOf ? 1 : 0.2;
+    }
+  }
+
+  function pushHistory(snapshot){
+    state.history.push(JSON.stringify(snapshot));
+    if(state.history.length>100) state.history.shift();
+  }
+
+  function snapshot(){
+    return {
+      scores: {...state.scores},
+      setsWon: {...state.setsWon},
+      serving: state.serving,
+      bestOf: state.bestOf,
+      pointsPerSet: state.pointsPerSet,
+      decidingPts: state.decidingPts,
+      winBy2: state.winBy2,
+      timeouts: {...state.timeouts},
+      currentSet: state.currentSet,
+      names: {A: nameEls.A.textContent, B: nameEls.B.textContent}
+    };
+  }
+
+  function restore(snap){
+    state.scores = snap.scores;
+    state.setsWon = snap.setsWon;
+    state.serving = snap.serving;
+    state.bestOf = snap.bestOf;
+    state.pointsPerSet = snap.pointsPerSet;
+    state.decidingPts = snap.decidingPts;
+    state.winBy2 = snap.winBy2;
+    state.timeouts = snap.timeouts;
+    state.currentSet = snap.currentSet;
+    nameEls.A.textContent = snap.names.A;
+    nameEls.B.textContent = snap.names.B;
+    // Also sync controls
+    el('bestOf').value = String(state.bestOf);
+    el('pointsPerSet').value = state.pointsPerSet;
+    el('decidingPts').value = state.decidingPts;
+    el('winBy2').checked = state.winBy2;
+    render();
+  }
+
+  function addPoints(team, delta){
+    if(delta===0) return;
+    pushHistory(snapshot());
+    state.scores[team] = Math.max(0, state.scores[team] + delta);
+    render();
+    checkSetWin();
+  }
+
+  function toggleServe(){
+    pushHistory(snapshot());
+    state.serving = state.serving==='A' ? 'B' : 'A';
+    render();
+  }
+
+  function giveServe(team){
+    if(state.serving===team) return;
+    pushHistory(snapshot());
+    state.serving = team;
+    render();
+  }
+
+  function flipSides(){
+    pushHistory(snapshot());
+    // swap names, scores, sets, timeouts, serve
+    const tmpName = nameEls.A.textContent;
+    nameEls.A.textContent = nameEls.B.textContent;
+    nameEls.B.textContent = tmpName;
+
+    const s = state.scores.A; state.scores.A = state.scores.B; state.scores.B = s;
+    const w = state.setsWon.A; state.setsWon.A = state.setsWon.B; state.setsWon.B = w;
+    const t = state.timeouts.A; state.timeouts.A = state.timeouts.B; state.timeouts.B = t;
+    state.serving = state.serving==='A' ? 'B' : 'A';
+    render();
+  }
+
+  function newSet(auto=false){
+    const winner = computeSetWinner();
+    if(!auto && state.scores.A+state.scores.B>0 && winner===null){
+      if(!confirm('Start a new set without a winner?')) return;
+    }
+    pushHistory(snapshot());
+    if(winner){
+      state.setsWon[winner] += 1;
+    }
+    state.scores = {A:0,B:0};
+    state.timeouts = {A:0,B:0};
+    state.currentSet += 1;
+    render();
+    maybeEndMatch();
+  }
+
+  function computeTarget(){
+    const deciding = (state.setsWon.A + state.setsWon.B) === (state.bestOf - 1);
+    return deciding ? state.decidingPts : state.pointsPerSet;
+  }
+
+  function computeSetWinner(){
+    const target = computeTarget();
+    const a = state.scores.A, b = state.scores.B;
+    const winBy = state.winBy2 ? 2 : 1;
+    if(a>=target || b>=target){
+      if(Math.abs(a-b) >= winBy){
+        return a>b ? 'A' : 'B';
+      }
+    }
+    return null;
+  }
+
+  function checkSetWin(){
+    const winner = computeSetWinner();
+    if(winner){
+      // highlight briefly
+      const panel = document.getElementById('team'+winner);
+      panel.animate([{transform:'scale(1)'},{transform:'scale(1.02)'},{transform:'scale(1)'}],{duration:500});
+      setTimeout(()=>{
+        newSet(true);
+      }, 500);
+    }
+  }
+
+  function maybeEndMatch(){
+    const needed = Math.ceil(state.bestOf/2);
+    if(state.setsWon.A>=needed || state.setsWon.B>=needed){
+      alert(`Match over! Winner: ${state.setsWon.A>state.setsWon.B ? nameEls.A.textContent : nameEls.B.textContent}`);
+    }
+  }
+
+  function undo(){
+    const last = state.history.pop();
+    if(!last) return;
+    restore(JSON.parse(last));
+  }
+
+  function newMatch(){
+    if(!confirm('Reset everything and start a new match?')) return;
+    pushHistory(snapshot());
+    state.scores = {A:0,B:0};
+    state.setsWon = {A:0,B:0};
+    state.serving = 'A';
+    state.timeouts = {A:0,B:0};
+    state.currentSet = 1;
+    render();
+  }
+
+  // Event wiring
+  document.querySelectorAll('button.plus,button.minus').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const team = e.currentTarget.getAttribute('data-team');
+      const delta = parseInt(e.currentTarget.getAttribute('data-delta'),10);
+      addPoints(team, delta);
+    });
+  });
+  document.querySelectorAll('[data-action="timeout"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const team = e.currentTarget.getAttribute('data-team');
+      pushHistory(snapshot());
+      state.timeouts[team] += 1;
+      e.currentTarget.animate([{transform:'scale(1)'},{transform:'scale(1.08)'},{transform:'scale(1)'}],{duration:200});
+    });
+  });
+  document.querySelectorAll('[data-action="giveServe"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const team = e.currentTarget.getAttribute('data-team');
+      giveServe(team);
+    });
+  });
+
+  el('flip').addEventListener('click', flipSides);
+  el('undo').addEventListener('click', undo);
+  el('newSet').addEventListener('click', ()=>newSet(false));
+  el('reset').addEventListener('click', newMatch);
+
+  el('bestOf').addEventListener('change', e=>{
+    pushHistory(snapshot());
+    state.bestOf = parseInt(e.target.value,10);
+    updateSetDots();
+  });
+  el('pointsPerSet').addEventListener('change', e=>{
+    pushHistory(snapshot());
+    state.pointsPerSet = Math.max(1, parseInt(e.target.value,10) || 25);
+  });
+  el('decidingPts').addEventListener('change', e=>{
+    pushHistory(snapshot());
+    state.decidingPts = Math.max(1, parseInt(e.target.value,10) || 15);
+  });
+  el('winBy2').addEventListener('change', e=>{
+    pushHistory(snapshot());
+    state.winBy2 = !!e.target.checked;
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', e=>{
+    if(e.target.isContentEditable) return;
+    const key = e.key.toLowerCase();
+    if(key==='a') addPoints('A', +1);
+    else if(key==='z') addPoints('A', -1);
+    else if(key==='k') addPoints('B', +1);
+    else if(key==='m') addPoints('B', -1);
+    else if(key==='u') undo();
+    else if(key==='f') flipSides();
+    else if(key==='n') newSet(false);
+    else if(key==='r') newMatch();
+    else if(key===' '){ e.preventDefault(); toggleServe(); }
+  });
+
+  // Initial render
+  render();
+})();
+</script>
+</body>
+</html>
